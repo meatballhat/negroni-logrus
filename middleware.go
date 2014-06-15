@@ -45,6 +45,6 @@ func (l *Middleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next htt
 		"request":     r.RequestURI,
 		"remote":      r.RemoteAddr,
 		"text_status": http.StatusText(res.Status()),
-		"time":        time.Since(start),
+		"took":        time.Since(start),
 	}).Info("completed handling request")
 }
