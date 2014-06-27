@@ -38,13 +38,15 @@ func (l *Middleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next htt
 
 	next(rw, r)
 
+	latency := time.Since(start)
 	res := rw.(negroni.ResponseWriter)
 	l.Logger.WithFields(logrus.Fields{
-		"status":      res.Status(),
-		"method":      r.Method,
-		"request":     r.RequestURI,
-		"remote":      r.RemoteAddr,
-		"text_status": http.StatusText(res.Status()),
-		"took":        time.Since(start),
+		"status":              res.Status(),
+		"method":              r.Method,
+		"request":             r.RequestURI,
+		"remote":              r.RemoteAddr,
+		"text_status":         http.StatusText(res.Status()),
+		"took":                latency,
+		"measure#web.latency": latency,
 	}).Info("completed handling request")
 }
