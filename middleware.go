@@ -50,6 +50,6 @@ func (l *Middleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next htt
 		"remote":      r.RemoteAddr,
 		"text_status": http.StatusText(res.Status()),
 		"took":        latency,
-		fmt.Sprintf("measure#%s.latency", l.Name): latency,
+		fmt.Sprintf("measure#%s.latency", l.Name): latency.Nanoseconds(),
 	}).Info("completed handling request")
 }
