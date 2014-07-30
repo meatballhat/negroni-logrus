@@ -19,7 +19,7 @@ type Middleware struct {
 
 // NewMiddleware returns a new *Middleware, yay!
 func NewMiddleware() *Middleware {
-	return NewCustomMiddleware(logrus.Info, &logrus.TextFormatter{}, "web")
+	return NewCustomMiddleware(logrus.InfoLevel, &logrus.TextFormatter{}, "web")
 }
 
 // NewCustomMiddleware builds a *Middleware with the given level and formatter
