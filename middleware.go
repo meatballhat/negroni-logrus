@@ -33,10 +33,17 @@ func NewCustomMiddleware(level logrus.Level, formatter logrus.Formatter, name st
 
 func (l *Middleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	start := time.Now()
+
+	// Try to get the real IP
+	remoteAddr := r.RemoteAddr
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		remoteAddr = realIP
+	}
+
 	entry := l.Logger.WithFields(logrus.Fields{
 		"request": r.RequestURI,
 		"method":  r.Method,
-		"remote":  r.RemoteAddr,
+		"remote":  remoteAddr,
 	})
 
 	if reqID := r.Header.Get("X-Request-Id"); reqID != "" {
