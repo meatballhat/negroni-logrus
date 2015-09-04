@@ -10,3 +10,5 @@ logrus middleware for negroni
 Take a peek at the [basic example](./examples/basic/example.go) or the [custom
 example](./examples/custom/example.go), the latter of which includes setting a
 custom log level on the logger with `NewCustomMiddleware`!.
+If you want to reuse an already intialized `logrus.Logger`, you should be using
+`NewMiddlewareFromLogger` (see [existinglogrus](./examples/existinglogrus/example.go)).
