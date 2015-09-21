@@ -31,6 +31,11 @@ func NewCustomMiddleware(level logrus.Level, formatter logrus.Formatter, name st
 	return &Middleware{Logger: log, Name: name}
 }
 
+// NewMiddlewareFromLogger returns a new *Middleware which writes to a given logrus logger.
+func NewMiddlewareFromLogger(logger *logrus.Logger, name string) *Middleware {
+	return &Middleware{Logger: logger, Name: name}
+}
+
 func (l *Middleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	start := time.Now()
 
