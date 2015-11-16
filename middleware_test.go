@@ -129,7 +129,7 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 
 func TestMiddleware_ServeHTTP_logStartingFalse(t *testing.T) {
 	mw, rec, req := setupServeHTTP(t)
-	mw.logStarting = false
+	mw.SetLogStarting(false)
 	mw.ServeHTTP(rec, req, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(418)
 	})
@@ -141,4 +141,20 @@ func TestMiddleware_ServeHTTP_logStartingFalse(t *testing.T) {
 			`"measure#web.latency":10000,"took":10000,"text_status":"I'm a teapot",`+
 			`"status":418,"request_id":"22035D08-98EF-413C-BBA0-C4E66A11B28D","time":"%s"}`, nowToday),
 		lines[0])
+}
+
+func TestRealClock_Now(t *testing.T) {
+	rc := &realClock{}
+	tf := "2006-01-02T15:04:05"
+	assert.Equal(t, rc.Now().Format(tf), time.Now().Format(tf))
+}
+
+func TestRealClock_Since(t *testing.T) {
+	rc := &realClock{}
+	now := rc.Now()
+
+	time.Sleep(10 * time.Millisecond)
+	since := rc.Since(now)
+
+	assert.Regexp(t, "^1[0-5]\\.[0-9]+ms", since.String())
 }
