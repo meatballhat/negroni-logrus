@@ -103,6 +103,9 @@ func setupServeHTTP(t *testing.T) (*Middleware, negroni.ResponseWriter, *http.Re
 	}
 	mw.Logger.Out = &bytes.Buffer{}
 	mw.clock = &testClock{}
+	if err := mw.ExcludeURL("/ping"); err != nil {
+		t.Fatalf("Can't exclude URL %q: %q", "/ping", err)
+	}
 
 	return mw, negroni.NewResponseWriter(httptest.NewRecorder()), req
 }
@@ -141,6 +144,16 @@ func TestMiddleware_ServeHTTP_logStartingFalse(t *testing.T) {
 			`"measure#web.latency":10000,"took":10000,"text_status":"I'm a teapot",`+
 			`"status":418,"request_id":"22035D08-98EF-413C-BBA0-C4E66A11B28D","time":"%s"}`, nowToday),
 		lines[0])
+}
+
+func TestServeHTTPWithURLExcluded(t *testing.T) {
+	mw, rec, req := setupServeHTTP(t)
+	mw.ExcludeURL(req.URL.Path)
+	mw.ServeHTTP(rec, req, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(418)
+	})
+	lines := strings.Split(strings.TrimSpace(mw.Logger.Out.(*bytes.Buffer).String()), "\n")
+	assert.Equal(t, []string{""}, lines)
 }
 
 func TestRealClock_Now(t *testing.T) {

@@ -3,6 +3,7 @@ package negronilogrus
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -34,6 +35,9 @@ type Middleware struct {
 	logStarting bool
 
 	clock timer
+
+	// Exclude URLs from logging
+	excludeURLs []string
 }
 
 // NewMiddleware returns a new *Middleware, yay!
@@ -61,7 +65,27 @@ func (l *Middleware) SetLogStarting(v bool) {
 	l.logStarting = v
 }
 
+// ExcludeURL adds a new URL u to be ignored during logging. The URL u is parsed, hence the returned error
+func (l *Middleware) ExcludeURL(u string) error {
+	if _, err := url.Parse(u); err != nil {
+		return err
+	}
+	l.excludeURLs = append(l.excludeURLs, u)
+	return nil
+}
+
+// ExcludedURLs returns the list of excluded URLs for this middleware
+func (l *Middleware) ExcludedURLs() []string {
+	return l.excludeURLs
+}
+
 func (l *Middleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	for _, u := range l.excludeURLs {
+		if r.URL.Path == u {
+			return
+		}
+	}
+
 	start := l.clock.Now()
 
 	// Try to get the real IP
