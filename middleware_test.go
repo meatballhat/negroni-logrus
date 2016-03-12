@@ -148,7 +148,10 @@ func TestMiddleware_ServeHTTP_logStartingFalse(t *testing.T) {
 
 func TestServeHTTPWithURLExcluded(t *testing.T) {
 	mw, rec, req := setupServeHTTP(t)
-	mw.ExcludeURL(req.URL.Path)
+	if err := mw.ExcludeURL(req.URL.Path); err != nil {
+		t.Fatalf("Can't exclude URL %q: %q", "req.URL.Path", err)
+	}
+
 	mw.ServeHTTP(rec, req, func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(418)
 	})
