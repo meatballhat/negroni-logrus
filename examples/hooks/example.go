@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -22,8 +23,8 @@ func main() {
 	nl := negronilogrus.NewMiddleware()
 	// override the default Before
 	nl.Before = customBefore
-	// wrap the default after, here replacing dots with underscores in keys
-	nl.After = makeNoDotAfter(nl.After)
+	// override the default After
+	nl.After = customAfter
 
 	n.Use(nl)
 	n.UseHandler(r)
@@ -38,8 +39,19 @@ func customBefore(entry *logrus.Entry, _ *http.Request, remoteAddr string) *logr
 	})
 }
 
-func makeNoDotAfter(after negronilogrus.AfterFunc) negronilogrus.AfterFunc {
-	return func(entry *logrus.Entry, res negroni.ResponseWriter, latency time.Duration, name string) *logrus.Entry {
-		return negronilogrus.EntryKeysReplace(after(entry, res, latency, name), ".", "_").WithField("ALL_DONE", true)
+func customAfter(entry *logrus.Entry, res negroni.ResponseWriter, latency time.Duration, name string) *logrus.Entry {
+	fields := logrus.Fields{
+		"ALL_DONE":        true,
+		"RESPONSE_STATUS": res.Status(),
+
+		fmt.Sprintf("%s_LATENCY", strings.ToUpper(name)): latency,
 	}
+
+	// one way to replace an existing entry key
+	if requestId, ok := entry.Data["request_id"]; ok {
+		fields["REQUEST_ID"] = requestId
+		delete(entry.Data, "request_id")
+	}
+
+	return entry.WithFields(fields)
 }

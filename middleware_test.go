@@ -230,13 +230,3 @@ func TestRealClock_Since(t *testing.T) {
 
 	assert.Regexp(t, "^1[0-5]\\.[0-9]+ms", since.String())
 }
-
-func TestEntryKeysReplace(t *testing.T) {
-	entry := logrus.New().WithFields(logrus.Fields{"lots.of.dots": 99, "...dottyfoo": false})
-	entry = EntryKeysReplace(entry, ".", "_")
-
-	assert.NotContains(t, entry.Data, "lots.of.dots")
-	assert.Contains(t, entry.Data, "lots_of_dots")
-	assert.NotContains(t, entry.Data, "...dottyfoo")
-	assert.Contains(t, entry.Data, "___dottyfoo")
-}

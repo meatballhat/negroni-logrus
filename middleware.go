@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -166,15 +165,4 @@ func DefaultAfter(entry *logrus.Entry, res negroni.ResponseWriter, latency time.
 		"took":        latency,
 		fmt.Sprintf("measure#%s.latency", name): latency.Nanoseconds(),
 	})
-}
-
-// EntryKeysReplace is a wee helper function for performing a strings.Replace on
-// every key in entry.Data
-func EntryKeysReplace(entry *logrus.Entry, old string, new string) *logrus.Entry {
-	for key, value := range entry.Data {
-		delete(entry.Data, key)
-		entry = entry.WithField(strings.Replace(key, old, new, -1), value)
-	}
-
-	return entry
 }
