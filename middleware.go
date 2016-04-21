@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/Sirupsen/logrus"
@@ -30,7 +31,9 @@ type Middleware struct {
 	// Logger is the log.Logger instance used to log messages with the Logger middleware
 	Logger *logrus.Logger
 	// Name is the name of the application as recorded in latency metrics
-	Name string
+	Name   string
+	Before func(*logrus.Entry, *http.Request, string) *logrus.Entry
+	After  func(*logrus.Entry, negroni.ResponseWriter, time.Duration, string) *logrus.Entry
 
 	logStarting bool
 
@@ -51,42 +54,66 @@ func NewCustomMiddleware(level logrus.Level, formatter logrus.Formatter, name st
 	log.Level = level
 	log.Formatter = formatter
 
-	return &Middleware{Logger: log, Name: name, logStarting: true, clock: &realClock{}}
+	return &Middleware{
+		Logger: log,
+		Name:   name,
+		Before: DefaultBefore,
+		After:  DefaultAfter,
+
+		logStarting: true,
+		clock:       &realClock{},
+	}
 }
 
 // NewMiddlewareFromLogger returns a new *Middleware which writes to a given logrus logger.
 func NewMiddlewareFromLogger(logger *logrus.Logger, name string) *Middleware {
-	return &Middleware{Logger: logger, Name: name, logStarting: true, clock: &realClock{}}
+	return &Middleware{
+		Logger: logger,
+		Name:   name,
+		Before: DefaultBefore,
+		After:  DefaultAfter,
+
+		logStarting: true,
+		clock:       &realClock{},
+	}
 }
 
 // SetLogStarting accepts a bool to control the logging of "started handling
 // request" prior to passing to the next middleware
-func (l *Middleware) SetLogStarting(v bool) {
-	l.logStarting = v
+func (m *Middleware) SetLogStarting(v bool) {
+	m.logStarting = v
 }
 
 // ExcludeURL adds a new URL u to be ignored during logging. The URL u is parsed, hence the returned error
-func (l *Middleware) ExcludeURL(u string) error {
+func (m *Middleware) ExcludeURL(u string) error {
 	if _, err := url.Parse(u); err != nil {
 		return err
 	}
-	l.excludeURLs = append(l.excludeURLs, u)
+	m.excludeURLs = append(m.excludeURLs, u)
 	return nil
 }
 
 // ExcludedURLs returns the list of excluded URLs for this middleware
-func (l *Middleware) ExcludedURLs() []string {
-	return l.excludeURLs
+func (m *Middleware) ExcludedURLs() []string {
+	return m.excludeURLs
 }
 
-func (l *Middleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	for _, u := range l.excludeURLs {
+func (m *Middleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
+	if m.Before == nil {
+		m.Before = DefaultBefore
+	}
+
+	if m.After == nil {
+		m.After = DefaultAfter
+	}
+
+	for _, u := range m.excludeURLs {
 		if r.URL.Path == u {
 			return
 		}
 	}
 
-	start := l.clock.Now()
+	start := m.clock.Now()
 
 	// Try to get the real IP
 	remoteAddr := r.RemoteAddr
@@ -94,28 +121,60 @@ func (l *Middleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next htt
 		remoteAddr = realIP
 	}
 
-	entry := l.Logger.WithFields(logrus.Fields{
-		"request": r.RequestURI,
-		"method":  r.Method,
-		"remote":  remoteAddr,
-	})
+	entry := logrus.NewEntry(m.Logger)
 
 	if reqID := r.Header.Get("X-Request-Id"); reqID != "" {
 		entry = entry.WithField("request_id", reqID)
 	}
 
-	if l.logStarting {
+	entry = m.Before(entry, r, remoteAddr)
+
+	if m.logStarting {
 		entry.Info("started handling request")
 	}
 
 	next(rw, r)
 
-	latency := l.clock.Since(start)
+	latency := m.clock.Since(start)
 	res := rw.(negroni.ResponseWriter)
-	entry.WithFields(logrus.Fields{
+
+	m.After(entry, res, latency, m.Name).Info("completed handling request")
+}
+
+// BeforeFunc is the func type used to modify or replace the *logrus.Entry prior
+// to calling the next func in the middleware chain
+type BeforeFunc func(*logrus.Entry, *http.Request, string) *logrus.Entry
+
+// AfterFunc is the func type used to modify or replace the *logrus.Entry after
+// calling the next func in the middleware chain
+type AfterFunc func(*logrus.Entry, negroni.ResponseWriter, time.Duration, string) *logrus.Entry
+
+// DefaultBefore is the default func assigned to *Middleware.Before
+func DefaultBefore(entry *logrus.Entry, req *http.Request, remoteAddr string) *logrus.Entry {
+	return entry.WithFields(logrus.Fields{
+		"request": req.RequestURI,
+		"method":  req.Method,
+		"remote":  remoteAddr,
+	})
+}
+
+// DefaultAfter is the default func assigned to *Middleware.After
+func DefaultAfter(entry *logrus.Entry, res negroni.ResponseWriter, latency time.Duration, name string) *logrus.Entry {
+	return entry.WithFields(logrus.Fields{
 		"status":      res.Status(),
 		"text_status": http.StatusText(res.Status()),
 		"took":        latency,
-		fmt.Sprintf("measure#%s.latency", l.Name): latency.Nanoseconds(),
-	}).Info("completed handling request")
+		fmt.Sprintf("measure#%s.latency", name): latency.Nanoseconds(),
+	})
+}
+
+// EntryKeysReplace is a wee helper function for performing a strings.Replace on
+// every key in entry.Data
+func EntryKeysReplace(entry *logrus.Entry, old string, new string) *logrus.Entry {
+	for key, value := range entry.Data {
+		delete(entry.Data, key)
+		entry = entry.WithField(strings.Replace(key, old, new, -1), value)
+	}
+
+	return entry
 }

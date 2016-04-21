@@ -130,6 +130,62 @@ func TestMiddleware_ServeHTTP(t *testing.T) {
 		lines[1])
 }
 
+func TestMiddleware_ServeHTTP_nilHooks(t *testing.T) {
+	mw, rec, req := setupServeHTTP(t)
+	mw.Before = nil
+	mw.After = nil
+	mw.ServeHTTP(rec, req, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(418)
+	})
+	lines := strings.Split(strings.TrimSpace(mw.Logger.Out.(*bytes.Buffer).String()), "\n")
+	assert.Len(t, lines, 2)
+	assert.JSONEq(t,
+		fmt.Sprintf(`{"level":"info","method":"GET","msg":"started handling request",`+
+			`"remote":"10.10.10.10","request":"http://example.com/stuff?rly=ya",`+
+			`"request_id":"22035D08-98EF-413C-BBA0-C4E66A11B28D","time":"%s"}`, nowToday),
+		lines[0])
+	assert.JSONEq(t,
+		fmt.Sprintf(`{"level":"info","method":"GET","msg":"completed handling request",`+
+			`"remote":"10.10.10.10","request":"http://example.com/stuff?rly=ya",`+
+			`"measure#web.latency":10000,"took":10000,"text_status":"I'm a teapot",`+
+			`"status":418,"request_id":"22035D08-98EF-413C-BBA0-C4E66A11B28D","time":"%s"}`, nowToday),
+		lines[1])
+}
+
+func TestMiddleware_ServeHTTP_BeforeOverride(t *testing.T) {
+	mw, rec, req := setupServeHTTP(t)
+	mw.Before = func(entry *logrus.Entry, _ *http.Request, _ string) *logrus.Entry {
+		return entry.WithFields(logrus.Fields{"wat": 200})
+	}
+	mw.ServeHTTP(rec, req, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(418)
+	})
+	lines := strings.Split(strings.TrimSpace(mw.Logger.Out.(*bytes.Buffer).String()), "\n")
+	assert.Len(t, lines, 2)
+	assert.JSONEq(t,
+		fmt.Sprintf(`{"wat":200,"level":"info","msg":"completed handling request",`+
+			`"measure#web.latency":10000,"took":10000,"text_status":"I'm a teapot",`+
+			`"status":418,"request_id":"22035D08-98EF-413C-BBA0-C4E66A11B28D","time":"%s"}`, nowToday),
+		lines[1])
+}
+
+func TestMiddleware_ServeHTTP_AfterOverride(t *testing.T) {
+	mw, rec, req := setupServeHTTP(t)
+	mw.After = func(entry *logrus.Entry, _ negroni.ResponseWriter, _ time.Duration, _ string) *logrus.Entry {
+		return entry.WithFields(logrus.Fields{"hambone": 57})
+	}
+	mw.ServeHTTP(rec, req, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(418)
+	})
+	lines := strings.Split(strings.TrimSpace(mw.Logger.Out.(*bytes.Buffer).String()), "\n")
+	assert.Len(t, lines, 2)
+	assert.JSONEq(t,
+		fmt.Sprintf(`{"hambone":57,"level":"info","method":"GET","msg":"completed handling request",`+
+			`"remote":"10.10.10.10","request":"http://example.com/stuff?rly=ya",`+
+			`"request_id":"22035D08-98EF-413C-BBA0-C4E66A11B28D","time":"%s"}`, nowToday),
+		lines[1])
+}
+
 func TestMiddleware_ServeHTTP_logStartingFalse(t *testing.T) {
 	mw, rec, req := setupServeHTTP(t)
 	mw.SetLogStarting(false)
@@ -173,4 +229,14 @@ func TestRealClock_Since(t *testing.T) {
 	since := rc.Since(now)
 
 	assert.Regexp(t, "^1[0-5]\\.[0-9]+ms", since.String())
+}
+
+func TestEntryKeysReplace(t *testing.T) {
+	entry := logrus.New().WithFields(logrus.Fields{"lots.of.dots": 99, "...dottyfoo": false})
+	entry = EntryKeysReplace(entry, ".", "_")
+
+	assert.NotContains(t, entry.Data, "lots.of.dots")
+	assert.Contains(t, entry.Data, "lots_of_dots")
+	assert.NotContains(t, entry.Data, "...dottyfoo")
+	assert.Contains(t, entry.Data, "___dottyfoo")
 }
