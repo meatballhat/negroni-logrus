@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/Sirupsen/logrus"
-	"github.com/codegangsta/negroni"
+	"github.com/urfave/negroni"
 	"github.com/stretchr/testify/assert"
 )
 
