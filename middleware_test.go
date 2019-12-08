@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
-	"github.com/urfave/negroni"
 	"github.com/stretchr/testify/assert"
+	"github.com/urfave/negroni"
 )
 
 var (
@@ -50,6 +50,11 @@ func TestNewMiddleware_logStarting(t *testing.T) {
 	assert.True(t, mw.logStarting)
 }
 
+func TestNewMiddleware_logCompleted(t *testing.T) {
+	mw := NewMiddleware()
+	assert.True(t, mw.logCompleted)
+}
+
 func TestNewCustomMiddleware_Name(t *testing.T) {
 	mw := NewCustomMiddleware(logrus.DebugLevel, &logrus.JSONFormatter{}, "test")
 	assert.Equal(t, "test", mw.Name)
@@ -72,6 +77,11 @@ func TestNewCustomMiddleware_logStarting(t *testing.T) {
 	assert.True(t, mw.logStarting)
 }
 
+func TestNewCustomMiddleware_logCompleted(t *testing.T) {
+	mw := NewCustomMiddleware(logrus.DebugLevel, &logrus.JSONFormatter{}, "test")
+	assert.True(t, mw.logCompleted)
+}
+
 func TestNewMiddlewareFromLogger_Logger(t *testing.T) {
 	l := logrus.New()
 	mw := NewMiddlewareFromLogger(l, "test")
@@ -86,6 +96,11 @@ func TestNewMiddlewareFromLogger_Name(t *testing.T) {
 func TestNewMiddlewareFromLogger_logStarting(t *testing.T) {
 	mw := NewMiddlewareFromLogger(logrus.New(), "test")
 	assert.True(t, mw.logStarting)
+}
+
+func TestNewMiddlewareFromLogger_logCompleted(t *testing.T) {
+	mw := NewMiddlewareFromLogger(logrus.New(), "test")
+	assert.True(t, mw.logCompleted)
 }
 
 func setupServeHTTP(t *testing.T) (*Middleware, negroni.ResponseWriter, *http.Request) {
@@ -200,6 +215,33 @@ func TestMiddleware_ServeHTTP_logStartingFalse(t *testing.T) {
 			`"measure#web.latency":10000,"took":10000,"text_status":"I'm a teapot",`+
 			`"status":418,"request_id":"22035D08-98EF-413C-BBA0-C4E66A11B28D","time":"%s"}`, nowToday),
 		lines[0])
+}
+
+func TestMiddleware_ServeHTTP_logCompletedFalse(t *testing.T) {
+	mw, rec, req := setupServeHTTP(t)
+	mw.SetLogCompleted(false)
+	mw.ServeHTTP(rec, req, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(418)
+	})
+	lines := strings.Split(strings.TrimSpace(mw.Logger.Out.(*bytes.Buffer).String()), "\n")
+	assert.Len(t, lines, 1)
+	assert.JSONEq(t,
+		fmt.Sprintf(`{"level":"info","method":"GET","msg":"started handling request",`+
+			`"remote":"10.10.10.10","request":"http://example.com/stuff?rly=ya",`+
+			`"request_id":"22035D08-98EF-413C-BBA0-C4E66A11B28D","time":"%s"}`, nowToday),
+		lines[0])
+}
+
+func TestMiddleware_ServeHTTP_logFalse(t *testing.T) {
+	mw, rec, req := setupServeHTTP(t)
+	mw.SetLogStarting(false)
+	mw.SetLogCompleted(false)
+	mw.ServeHTTP(rec, req, func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(418)
+	})
+	lines := strings.Split(strings.TrimSpace(mw.Logger.Out.(*bytes.Buffer).String()), "\n")
+	assert.Len(t, lines, 1)
+	assert.Equal(t, "", lines[0])
 }
 
 func TestServeHTTPWithURLExcluded(t *testing.T) {
