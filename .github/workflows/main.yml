@@ -1,0 +1,23 @@
+name: main
+on:
+  push:
+    branches: [main]
+    tags: [v*]
+  pull_request:
+    branches: [main]
+jobs:
+  main:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go: ['1.15', '1.14', '1.13']
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v1
+        with:
+          go-version: ${{ matrix.go }}
+      - uses: golangci/golangci-lint-action@v2
+        with:
+          version: v1.29
+      - run: go test -v -coverprofile=package.coverprofile
+      - run: go tool cover -func=package.coverprofile
