@@ -1,21 +1,19 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net/http"
 
-	"flag"
-
+	negronilogrus "github.com/meatballhat/negroni-logrus"
 	"github.com/sirupsen/logrus"
-
 	"github.com/urfave/negroni"
-	"github.com/meatballhat/negroni-logrus"
 )
 
-var quiet bool
-
 func main() {
-	flag.BoolVar(&quiet, "quiet", false, "if set, hide messages from the logger")
+	quiet := false
+
+	flag.BoolVar(&quiet, "quiet", quiet, "if set, hide messages from the logger")
 	flag.Parse()
 	r := http.NewServeMux()
 	r.HandleFunc(`/`, func(w http.ResponseWriter, r *http.Request) {
